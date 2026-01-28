@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Selfie Verification</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      min-height: 100vh;
+      background:#efb028;
+      display: flex;
+      justify-content: center;
+      padding-top: 140px; 
+      color: #fff;
+    }
+
+    .top-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 120px; 
+      background: linear-gradient(135deg, #ff6a00, #ff8c1a);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 30px; 
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+      z-index: 1000;
+    }
+
+    
+    .logo1 {
+      max-height: 100px;
+      width: 100px;
+      /* object-fit: contain; */
+    }
+    .logo2 {
+      margin-right: 40px;
+      max-height: 100px; 
+      width: 120px;
+      object-fit: contain;
+    }
+
+    .title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 22px;
+      font-weight: bold;
+      white-space: nowrap;
+      color: #fff;
+      text-align: center;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 420px;
+      background: #eb9c56;
+      padding: 16px;
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      border: 2px solid rgba(255,255,255,0.15);
+    }
+
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+    }
+
+    input {
+      outline: none;
+      width: 94%;
+    }
+
+    button {
+      background: #22c55e;
+      margin-top: 30px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #f97316;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .camera-box {
+      display: none;
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3/4;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    video, canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    canvas {
+      z-index: 2;
+    }
+
+    .preview {
+      display: none;
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3/4;
+      margin-top: 10px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #ff6a00, #ff8c1a);
+      box-shadow: 0 0 20px rgba(255,140,0,0.6);
+    }
+
+    .preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .status {
+      text-align: center;
+      margin-top: 10px;
+      min-height: 22px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header class="top-header">
+  <img src="hngu.jpeg" class="logo1" alt="Left Logo">
+  <div class="title">WORLD ASSOCIATION OF HINDU ACADEMICIANS</div>
+  <img src="logo.jpeg" class="logo2" alt="Right Logo">
+</header>
+
+<div class="app">
+  <div id="statement">
+    <!-- <h1 align="center">नमामि वन्दे मातरम्</h1> -->
+  </div>
+  <div id="formSection">
+    <input id="name" placeholder="Enter your name">
+    <input id="mobile" placeholder="Enter mobile number" maxlength="10">
+    <button id="submitBtn">Submit</button>
+  </div>
+
+  <!-- CAMERA -->
+  <div class="camera-box" id="cameraBox">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+  </div>
+
+  <!-- PREVIEW -->
+  <div class="preview" id="previewBox">
+    <img id="previewImg">
+  </div>
+
+  <button id="captureBtn" style="display:none;">Capture Selfie</button>
+  <button id="uploadBtn" style="display:none;">Upload</button>
+  <button id="retakeBtn" class="secondary" style="display:none;">Retake</button>
+
+  <div class="status" id="status"></div>
+</div>
+
+<!-- Background image for segmentation -->
+<img id="fixedBg" src="Admin_building2.jpeg" crossorigin="anonymous" style="display:none;">
+
+<script>
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const submitBtn = document.getElementById("submitBtn");
+  const captureBtn = document.getElementById("captureBtn");
+  const uploadBtn = document.getElementById("uploadBtn");
+  const retakeBtn = document.getElementById("retakeBtn");
+
+  const formSection = document.getElementById("formSection");
+  const cameraBox = document.getElementById("cameraBox");
+  const previewBox = document.getElementById("previewBox");
+  const previewImg = document.getElementById("previewImg");
+  const statusText = document.getElementById("status");
+
+  const nameInput = document.getElementById("name");
+  const mobileInput = document.getElementById("mobile");
+
+  const fixedBg = document.getElementById("fixedBg");
+  let bgReady = false;
+  fixedBg.onload = () => bgReady = true;
+
+  const BACKEND_URL = "http://localhost:3000/upload";
+
+  let camera;
+  let lastFrameReady = false;
+  let capturedImage = null;
+
+  submitBtn.onclick = () => {
+    if (!/^[A-Za-z ]{2,}$/.test(nameInput.value)) {
+      statusText.innerText = "Enter valid name";
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(mobileInput.value)) {
+      statusText.innerText = "Enter valid mobile number";
+      return;
+    }
+
+    formSection.style.display = "none";
+    cameraBox.style.display = "block";
+    captureBtn.style.display = "block";
+    statusText.innerText = "Opening camera...";
+    initCamera();
+  };
+
+  function initCamera() {
+    const segmentation = new SelfieSegmentation({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
+    });
+
+    segmentation.setOptions({ modelSelection: 1 });
+    segmentation.onResults(onResults);
+
+    camera = new Camera(video, {
+      onFrame: async () => segmentation.send({ image: video }),
+      width: 360,
+      height: 480
+    });
+
+    camera.start();
+  }
+
+  function onResults(results) {
+    if (!video.videoWidth || !bgReady) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "destination-in";
+    ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.drawImage(fixedBg, 0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "source-over";
+
+    lastFrameReady = true;
+  }
+
+  captureBtn.onclick = () => {
+    if (!lastFrameReady) return;
+
+    const clone = document.createElement("canvas");
+    clone.width = canvas.width;
+    clone.height = canvas.height;
+    clone.getContext("2d").drawImage(canvas, 0, 0);
+
+    capturedImage = clone.toDataURL("image/jpeg", 0.85);
+    previewImg.src = capturedImage;
+
+    camera.stop();
+
+    cameraBox.style.display = "none";
+    previewBox.style.display = "block";
+    captureBtn.style.display = "none";
+    uploadBtn.style.display = "block";
+    retakeBtn.style.display = "block";
+
+    statusText.innerText = "Preview your selfie";
+  };
+
+  retakeBtn.onclick = () => {
+    previewBox.style.display = "none";
+    cameraBox.style.display = "block";
+    uploadBtn.style.display = "none";
+    retakeBtn.style.display = "none";
+    captureBtn.style.display = "block";
+    initCamera();
+  };
+
+  uploadBtn.onclick = async () => {
+    statusText.innerText = "Uploading...";
+
+    try {
+      const res = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nameInput.value.trim(),
+          mobile: mobileInput.value.trim(),
+          image: capturedImage
+        })
+      });
+
+      const data = await res.json();
+      statusText.innerText = data.success ? "✅ Upload successful" : "❌ Upload failed";
+    } catch {
+      statusText.innerText = "❌ Server error";
+    }
+  };
+</script>
+
+</body>
+</html>
