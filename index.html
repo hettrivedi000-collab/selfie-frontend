@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
   <style>
     * {
@@ -113,6 +112,11 @@
 
     canvas { z-index: 2; }
 
+    /* For iOS/iPhone - ensure the video is hidden but processing */
+    video {
+      opacity: 0;
+    }
+
     .preview {
       display: none;
       width: 100%;
@@ -213,8 +217,20 @@
 
   const BACKEND_URL = "https://selfie-backend-d7y8.onrender.com/upload";
 
-  let camera;
+  let selfieSegmentation;
+  let isCameraRunning = false;
   let lastFrameReady = false;
+
+  // Initialize Segmentation once
+  selfieSegmentation = new SelfieSegmentation({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+  });
+
+  selfieSegmentation.setOptions({
+    modelSelection: 1,
+  });
+
+  selfieSegmentation.onResults(onResults);
 
   submitBtn.onclick = () => {
     if (!/^[A-Za-z ]{2,}$/.test(nameInput.value)) {
@@ -237,48 +253,76 @@
     formSection.style.display = "none";
     cameraBox.style.display = "block";
     captureBtn.style.display = "block";
-    statusText.innerText = "Camera opening...";
+    statusText.innerText = "Initializing Camera...";
     startCamera();
   };
 
-  function startCamera() {
-    const segmentation = new SelfieSegmentation({
-      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${f}`
-    });
-    segmentation.setOptions({ modelSelection: 1 });
-    segmentation.onResults(onResults);
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        },
+        audio: false
+      });
+      
+      video.srcObject = stream;
+      isCameraRunning = true;
 
-    camera = new Camera(video, {
-      onFrame: async () => {
-        await segmentation.send({ image: video });
-      },
-      width: 480,
-      height: 640,
-      facingMode: 'user'
-    });
-    camera.start();
+      video.onloadedmetadata = () => {
+        video.play();
+        statusText.innerText = "";
+        requestAnimationFrame(processVideo);
+      };
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      statusText.innerText = "Camera access denied or not available.";
+    }
+  }
+
+  async function processVideo() {
+    if (!isCameraRunning) return;
+    
+    if (video.readyState === 4) {
+      await selfieSegmentation.send({ image: video });
+    }
+    
+    // Continue loop
+    requestAnimationFrame(processVideo);
   }
 
   function onResults(results) {
-    if (!video.videoWidth || !bgReady) return;
-    
-    statusText.innerText = "";
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
+    if (!bgReady) return;
+
+    // Adjust canvas size to match video stream
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 1. Draw the segmentation mask
     ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-    ctx.globalCompositeOperation = "source-in";
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.globalCompositeOperation = "destination-over";
+
+    // 2. Keep only the parts of the video that overlap with the mask
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    // 3. Draw the background image behind the person
+    ctx.globalCompositeOperation = 'destination-over';
     ctx.drawImage(fixedBg, 0, 0, canvas.width, canvas.height);
+
     ctx.restore();
     lastFrameReady = true;
   }
 
   captureBtn.onclick = () => {
     if (!lastFrameReady) return;
+    
     const imgCanvas = document.createElement("canvas");
     imgCanvas.width = canvas.width;
     imgCanvas.height = canvas.height;
@@ -286,7 +330,12 @@
     
     previewImg.src = imgCanvas.toDataURL("image/jpeg", 0.9);
     
-    if(camera) camera.stop();
+    // Stop camera stream
+    isCameraRunning = false;
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
+    }
+
     cameraBox.style.display = "none";
     previewBox.style.display = "block";
     captureBtn.style.display = "none";
@@ -305,10 +354,8 @@
     startCamera();
   };
 
-  // Function to send only text data to MongoDB
   async function uploadToBackend() {
     statusText.innerText = "Saving your details...";
-
     const userData = {
       name: nameInput.value,
       mobile: mobileInput.value,
@@ -317,11 +364,9 @@
     };
 
     try {
-      const response = await fetch(BACKEND_URL, {
+      await fetch(BACKEND_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
       });
     } catch (error) {
@@ -351,7 +396,6 @@
     link.href = certCanvas.toDataURL("image/jpeg", 1.0);
     link.click();
 
-    // Trigger data storage
     uploadToBackend();
 
     setTimeout(() => {
