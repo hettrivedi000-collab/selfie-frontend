@@ -142,7 +142,7 @@
 
     .closing-message {
       text-align: center;
-      margin-top: 20%;
+      margin-top: 10%;
       font-size: 24px;
       font-weight: bold;
       color: white;
@@ -339,7 +339,7 @@
   };
 
   async function uploadToBackend() {
-    statusText.innerText = "Saving your details...";
+   // statusText.innerText = "Saving your details...";
     const userData = {
       name: nameInput.value,
       mobile: mobileInput.value,
@@ -393,11 +393,11 @@
   cctx.drawImage(certBgImage, 0, 0, 1080, 1920);
 
   // ================= PHOTO (BOTTOM LEFT) =================
-const photoW = 308;
-const photoH = 420;
+const photoW = 298;
+const photoH = 410;
 
 const photoX = 40;
-const photoY = certCanvas.height - photoH - 55;
+const photoY = certCanvas.height - photoH - 66;
 
 cctx.imageSmoothingEnabled = true;
 cctx.imageSmoothingQuality = "high";
@@ -440,4 +440,3 @@ cctx.drawImage(
 
 </body>
 </html>
-
