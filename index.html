@@ -52,7 +52,7 @@
 
     .app-image-container {
       width: 100%;
-      height: 230px;
+      height: 240px;
       border-radius: 12px;
       overflow: hidden;
       margin-bottom: 15px;
@@ -126,8 +126,8 @@
     }
 
     .preview img {
-      width: 80%;
-      height: 80%;
+      width: 100%;
+      height: 100%;
       object-fit: cover;
     }
 
@@ -155,12 +155,12 @@
 
 <header class="top-header">
   <img src="hngu.jpeg" class="logo1">
-  <img src="logo.jpeg" class="logo2">
+  <img src="logo.png" class="logo2">
 </header>
 
 <div class="app" id="mainApp">
   <div class="app-image-container">
-    <img src="sts.jpeg" alt="Banner Image">
+    <img src="sts.png" alt="Banner Image">
   </div>
 
   <div id="formSection">
@@ -242,7 +242,7 @@
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: "user", width: { ideal: 600 }, height: { ideal: 480 } },
         audio: false
       });
       video.srcObject = stream;
@@ -269,35 +269,47 @@
     canvas.height = video.videoHeight;
   }
 
-  ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const selfieHeight = canvas.height * 0.55;
+  // =====================
+  // DRAW PERSON FIRST
+  // =====================
+  const selfieHeight = canvas.height * 0.6;
   const selfieY = canvas.height - selfieHeight;
-  ctx.drawImage(
-    results.segmentationMask,
-    0,
-    selfieY,
-    canvas.width,
-    selfieHeight
-  );
 
-  ctx.globalCompositeOperation = 'source-in';
+  const scale = 0.8; // adjust width
+  const drawWidth = canvas.width * scale;
+  const drawX = (canvas.width - drawWidth) / 2;
 
   ctx.drawImage(
     results.image,
-    0,
+    drawX,
     selfieY,
-    canvas.width,
+    drawWidth,
     selfieHeight
   );
 
-  ctx.globalCompositeOperation = 'destination-over';
+  // =====================
+  // APPLY MASK (CUT ONLY PERSON)
+  // =====================
+  ctx.globalCompositeOperation = "destination-in";
+
+  ctx.drawImage(
+    results.segmentationMask,
+    drawX,
+    selfieY,
+    drawWidth,
+    selfieHeight
+  );
+
+  ctx.globalCompositeOperation = "destination-over";
+
   ctx.drawImage(fixedBg, 0, 0, canvas.width, canvas.height);
 
-  ctx.restore();
+  ctx.globalCompositeOperation = "source-over";
   lastFrameReady = true;
 }
+
 
 
   captureBtn.onclick = () => {
