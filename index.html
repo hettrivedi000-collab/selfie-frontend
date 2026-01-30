@@ -422,17 +422,22 @@ cctx.drawImage(
   const nameY = 1335;
  
   cctx.fillText(uName, nameX, nameY); 
-*/
-  const imgData = certCanvas.toDataURL("image/png", 1.0);
+*/certCanvas.toBlob(function(blob) {
 
-if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    window.open(imgData, "_blank");
-} else {
-  const link = document.createElement("a");
-  link.download = "Certificate.png";
-  link.href = imgData;
-  link.click();
-}
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  if (isIOS) {
+    const url = URL.createObjectURL(blob);
+    window.location.href = url;   // ✅ works on iPhone
+  } else {
+    const link = document.createElement("a");
+    link.download = "Certificate.png";
+    link.href = URL.createObjectURL(blob);
+    link.click();
+  }
+
+}, "image/png", 1.0);
+
 
 
   uploadToBackend();
