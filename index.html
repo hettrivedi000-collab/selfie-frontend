@@ -423,10 +423,17 @@ cctx.drawImage(
  
   cctx.fillText(uName, nameX, nameY); 
 */
+  const imgData = certCanvas.toDataURL("image/png", 1.0);
+
+if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    window.open(imgData, "_blank");
+} else {
   const link = document.createElement("a");
-  link.download = `Certificate.png`;
-  link.href = certCanvas.toDataURL("image/png", 1.0);
+  link.download = "Certificate.png";
+  link.href = imgData;
   link.click();
+}
+
 
   uploadToBackend();
 
