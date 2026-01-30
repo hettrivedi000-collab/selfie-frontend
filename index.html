@@ -112,7 +112,6 @@
 
     canvas { z-index: 2; }
 
-    /* For iOS/iPhone - ensure the video is hidden but processing */
     video {
       opacity: 0;
     }
@@ -127,8 +126,8 @@
     }
 
     .preview img {
-      width: 100%;
-      height: 100%;
+      width: 80%;
+      height: 80%;
       object-fit: cover;
     }
 
@@ -189,6 +188,7 @@
 </div>
 
 <img id="fixedBg" src="Admin_building2.jpeg" style="display:none">
+<img id="certBg" src="certificate.png" style="display:none">
 
 <script>
   const video = document.getElementById("video");
@@ -221,35 +221,17 @@
   let isCameraRunning = false;
   let lastFrameReady = false;
 
-  // Initialize Segmentation once
   selfieSegmentation = new SelfieSegmentation({
     locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
   });
 
-  selfieSegmentation.setOptions({
-    modelSelection: 1,
-  });
-
+  selfieSegmentation.setOptions({ modelSelection: 1 });
   selfieSegmentation.onResults(onResults);
 
   submitBtn.onclick = () => {
-    if (!/^[A-Za-z ]{2,}$/.test(nameInput.value)) {
-      statusText.innerText = "Enter valid name";
-      return;
-    }
-    if (!/^[6-9]\d{9}$/.test(mobileInput.value)) {
-      statusText.innerText = "Enter valid 10-digit mobile number";
-      return;
-    }
-    if (cityInput.value.trim() === "") {
-      statusText.innerText = "City is required";
-      return;
-    }
-    if (occupationInput.value.trim() === "") {
-      statusText.innerText = "Occupation is required";
-      return;
-    }
-
+    if (!/^[A-Za-z ]{2,}$/.test(nameInput.value)) { statusText.innerText = "Enter valid name"; return; }
+    if (!/^[6-9]\d{9}$/.test(mobileInput.value)) { statusText.innerText = "Enter valid 10-digit mobile number"; return; }
+    if (cityInput.value.trim() === "" || occupationInput.value.trim() === "") { statusText.innerText = "Required fields missing"; return; }
     formSection.style.display = "none";
     cameraBox.style.display = "block";
     captureBtn.style.display = "block";
@@ -260,82 +242,73 @@
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: "user",
-          width: { ideal: 640 },
-          height: { ideal: 480 }
-        },
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false
       });
-      
       video.srcObject = stream;
       isCameraRunning = true;
-
       video.onloadedmetadata = () => {
         video.play();
         statusText.innerText = "";
         requestAnimationFrame(processVideo);
       };
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      statusText.innerText = "Camera access denied or not available.";
-    }
+    } catch (err) { statusText.innerText = "Camera access denied."; }
   }
 
   async function processVideo() {
     if (!isCameraRunning) return;
-    
-    if (video.readyState === 4) {
-      await selfieSegmentation.send({ image: video });
-    }
-    
-    // Continue loop
+    if (video.readyState === 4) await selfieSegmentation.send({ image: video });
     requestAnimationFrame(processVideo);
   }
 
   function onResults(results) {
-    if (!bgReady) return;
+  if (!bgReady) return;
 
-    // Adjust canvas size to match video stream
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
-
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 1. Draw the segmentation mask
-    ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-
-    // 2. Keep only the parts of the video that overlap with the mask
-    ctx.globalCompositeOperation = 'source-in';
-    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-    // 3. Draw the background image behind the person
-    ctx.globalCompositeOperation = 'destination-over';
-    ctx.drawImage(fixedBg, 0, 0, canvas.width, canvas.height);
-
-    ctx.restore();
-    lastFrameReady = true;
+  if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
   }
+
+  ctx.save();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const selfieHeight = canvas.height * 0.55;
+  const selfieY = canvas.height - selfieHeight;
+  ctx.drawImage(
+    results.segmentationMask,
+    0,
+    selfieY,
+    canvas.width,
+    selfieHeight
+  );
+
+  ctx.globalCompositeOperation = 'source-in';
+
+  ctx.drawImage(
+    results.image,
+    0,
+    selfieY,
+    canvas.width,
+    selfieHeight
+  );
+
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.drawImage(fixedBg, 0, 0, canvas.width, canvas.height);
+
+  ctx.restore();
+  lastFrameReady = true;
+}
+
 
   captureBtn.onclick = () => {
     if (!lastFrameReady) return;
-    
     const imgCanvas = document.createElement("canvas");
     imgCanvas.width = canvas.width;
     imgCanvas.height = canvas.height;
     imgCanvas.getContext("2d").drawImage(canvas, 0, 0);
-    
     previewImg.src = imgCanvas.toDataURL("image/jpeg", 0.9);
-    
-    // Stop camera stream
     isCameraRunning = false;
-    if (video.srcObject) {
-      video.srcObject.getTracks().forEach(track => track.stop());
-    }
-
+    if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
     cameraBox.style.display = "none";
     previewBox.style.display = "block";
     captureBtn.style.display = "none";
@@ -350,7 +323,6 @@
     captureBtn.style.display = "block";
     retakeBtn.style.display = "none";
     downloadBtn.style.display = "none";
-    statusText.innerText = "Camera restarting...";
     startCamera();
   };
 
@@ -362,48 +334,97 @@
       city: cityInput.value,
       occupation: occupationInput.value
     };
-
     try {
       await fetch(BACKEND_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
       });
-    } catch (error) {
-      console.error("Network error:", error);
+    } catch (error) { console.error("Error:", error); }
+  }
+
+  function wrapText(context, text, x, y, maxWidth, lineHeight, userName) {
+    const lines = text.split('\n');
+    let currentY = y;
+    for (let i = 0; i < lines.length; i++) {
+        let words = lines[i].split(' ');
+        let currentX = x;
+        for (let n = 0; n < words.length; n++) {
+            let word = words[n];
+            let isName = (userName && (word === userName || word.includes(userName)));
+            context.font = isName ? "bold 50px Georgia, serif" : "46px Georgia, serif";
+            let wordWidth = context.measureText(word + ' ').width;
+            if (currentX + wordWidth > x + maxWidth && currentX > x) {
+                currentY += lineHeight;
+                currentX = x;
+            }
+            context.save();
+            context.fillStyle = isName ? "#550000" : "#8B0000";
+            context.fillText(word, currentX, currentY);
+            context.restore();
+            currentX += wordWidth;
+        }
+        currentY += lineHeight;
     }
   }
 
   downloadBtn.onclick = () => {
-    const certCanvas = document.createElement("canvas");
-    const cctx = certCanvas.getContext("2d");
-    certCanvas.width = 1080;
-    certCanvas.height = 1920;
 
-    cctx.fillStyle = "#efb028"; 
-    cctx.fillRect(0, 0, 1080, 1920);
+  const certCanvas = document.createElement("canvas");
+  const cctx = certCanvas.getContext("2d");
 
-    const photoWidth = 400;
-    const photoHeight = 533;
-    const margin = 60;
-    
-    cctx.fillStyle = "#ffffff";
-    cctx.fillRect(margin - 10, margin - 10, photoWidth + 20, photoHeight + 20);
-    cctx.drawImage(previewImg, margin, margin, photoWidth, photoHeight);
+  certCanvas.width = 1080;
+  certCanvas.height = 1920;
 
-    const link = document.createElement("a");
-    link.download = `Certificate_${nameInput.value.replace(/\s+/g, '_')}.jpg`;
-    link.href = certCanvas.toDataURL("image/jpeg", 1.0);
-    link.click();
+  // ================= BACKGROUND =================
+  const certBgImage = document.getElementById("certBg");
+  cctx.drawImage(certBgImage, 0, 0, 1080, 1920);
 
-    uploadToBackend();
+  // ================= PHOTO (BOTTOM LEFT) =================
+const photoW = 308;
+const photoH = 420;
 
-    setTimeout(() => {
-        document.body.innerHTML = '<div class="closing-message">Certificate Downloaded & Info Saved!<br><br>You can now close this page.</div>';
-    }, 1500);
-  };
+const photoX = 40;
+const photoY = certCanvas.height - photoH - 55;
+
+cctx.imageSmoothingEnabled = true;
+cctx.imageSmoothingQuality = "high";
+
+cctx.drawImage(
+  previewImg,
+  photoX,
+  photoY,
+  photoW,
+  photoH
+);
+
+  /* // const uName = nameInput.value.trim();
+
+  cctx.fillStyle = "#000000";
+  cctx.font = "bold 48px Georgia, serif";
+  cctx.textAlign = "left";
+  cctx.textBaseline = "middle";
+
+  // This matches the underline position
+  const nameX = 435;
+  const nameY = 1335;
+ 
+  cctx.fillText(uName, nameX, nameY); 
+*/
+  const link = document.createElement("a");
+  link.download = `Certificate.jpg`;
+  link.href = certCanvas.toDataURL("image/jpeg", 1.0);
+  link.click();
+
+  uploadToBackend();
+
+  setTimeout(() => {
+    document.body.innerHTML =
+      '<div class="closing-message">Certificate Saved!<br><br>You can now close this page.</div>';
+  }, 1500);
+};
+
 </script>
 
 </body>
 </html>
-
