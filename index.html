@@ -160,7 +160,7 @@
 
 <div class="app" id="mainApp">
   <div class="app-image-container">
-    <img src="sts1.png" alt="Banner Image">
+    <img src="sts2.png" alt="Banner Image">
   </div>
 
   <div id="formSection">
@@ -424,8 +424,8 @@ cctx.drawImage(
   cctx.fillText(uName, nameX, nameY); 
 */
   const link = document.createElement("a");
-  link.download = `Certificate.jpg`;
-  link.href = certCanvas.toDataURL("image/jpeg", 1.0);
+  link.download = `Certificate.png`;
+  link.href = certCanvas.toDataURL("image/png", 1.0);
   link.click();
 
   uploadToBackend();
