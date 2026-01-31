@@ -271,15 +271,16 @@
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // =====================
-  // DRAW PERSON FIRST
-  // =====================
   const selfieHeight = canvas.height * 0.6;
   const selfieY = canvas.height - selfieHeight;
 
-  const scale = 0.8; // adjust width
+  const scale = 0.8; 
   const drawWidth = canvas.width * scale;
   const drawX = (canvas.width - drawWidth) / 2;
+
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
 
   ctx.drawImage(
     results.image,
@@ -289,9 +290,6 @@
     selfieHeight
   );
 
-  // =====================
-  // APPLY MASK (CUT ONLY PERSON)
-  // =====================
   ctx.globalCompositeOperation = "destination-in";
 
   ctx.drawImage(
@@ -301,6 +299,7 @@
     drawWidth,
     selfieHeight
   );
+  ctx.restore();
 
   ctx.globalCompositeOperation = "destination-over";
 
@@ -313,12 +312,22 @@
 
 
   captureBtn.onclick = () => {
-    if (!lastFrameReady) return;
-    const imgCanvas = document.createElement("canvas");
-    imgCanvas.width = canvas.width;
-    imgCanvas.height = canvas.height;
-    imgCanvas.getContext("2d").drawImage(canvas, 0, 0);
-    previewImg.src = imgCanvas.toDataURL("image/jpeg", 0.9);
+    if (!lastFrameReady) return;const imgCanvas = document.createElement("canvas");
+
+    const scaleFactor = 2;
+    imgCanvas.width = canvas.width * scaleFactor;
+    imgCanvas.height = canvas.height * scaleFactor;
+
+    const ictx = imgCanvas.getContext("2d");
+    ictx.imageSmoothingEnabled = true;
+    ictx.imageSmoothingQuality = "high";
+
+    ictx.drawImage(
+      canvas,0, 0,imgCanvas.width,imgCanvas.height
+    );
+
+  previewImg.src = imgCanvas.toDataURL("image/jpeg", 0.95);
+
     isCameraRunning = false;
     if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
     cameraBox.style.display = "none";
@@ -339,7 +348,6 @@
   };
 
   async function uploadToBackend() {
-   // statusText.innerText = "Saving your details...";
     const userData = {
       name: nameInput.value,
       mobile: mobileInput.value,
@@ -388,16 +396,14 @@
   certCanvas.width = 1080;
   certCanvas.height = 1920;
 
-  // ================= BACKGROUND =================
   const certBgImage = document.getElementById("certBg");
   cctx.drawImage(certBgImage, 0, 0, 1080, 1920);
 
-  // ================= PHOTO (BOTTOM LEFT) =================
-const photoW = 298;
-const photoH = 410;
+const photoW = 296;
+const photoH = 404;
 
 const photoX = 40;
-const photoY = certCanvas.height - photoH - 66;
+const photoY = certCanvas.height - photoH - 86;
 
 cctx.imageSmoothingEnabled = true;
 cctx.imageSmoothingQuality = "high";
@@ -410,25 +416,13 @@ cctx.drawImage(
   photoH
 );
 
-  /* // const uName = nameInput.value.trim();
-
-  cctx.fillStyle = "#000000";
-  cctx.font = "bold 48px Georgia, serif";
-  cctx.textAlign = "left";
-  cctx.textBaseline = "middle";
-
-  // This matches the underline position
-  const nameX = 435;
-  const nameY = 1335;
- 
-  cctx.fillText(uName, nameX, nameY); 
-*/certCanvas.toBlob(function(blob) {
+certCanvas.toBlob(function(blob) {
 
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   if (isIOS) {
     const url = URL.createObjectURL(blob);
-    window.location.href = url;   // ✅ works on iPhone
+    window.location.href = url;
   } else {
     const link = document.createElement("a");
     link.download = "Certificate.png";
@@ -437,8 +431,6 @@ cctx.drawImage(
   }
 
 }, "image/png", 1.0);
-
-
 
   uploadToBackend();
 
