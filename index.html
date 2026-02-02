@@ -326,7 +326,7 @@
       canvas,0, 0,imgCanvas.width,imgCanvas.height
     );
 
-  previewImg.src = imgCanvas.toDataURL("image/jpeg", 0.95);
+  previewImg.src = imgCanvas.toDataURL("image/png");
 
     isCameraRunning = false;
     if (video.srcObject) video.srcObject.getTracks().forEach(track => track.stop());
